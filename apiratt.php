@@ -586,10 +586,9 @@ class MijlocTransport
     	$list = array();
     	foreach ($this->_mijloaceTransport as $mijlocTransport) {
     		if($mijlocTransport['idMijloc'] == $id){
-    			$list[] = $mijlocTransport;
+    			return $mijlocTransport["numarLinie"];
     		}
     	}
-    	return $list;
     }
 }
 
@@ -625,9 +624,9 @@ class Traseu
 				array("idTraseu" => "1986", "traseu"=>"5940,3103,2971,6140,6142,7200,6146,6145,7201,6144,6141,2972,3104,6120"),
 				array("idTraseu" => "2006", "traseu"=>"2666,2667,2812,5964,5960,7067,7065,7063,7060,7062,7100,7040,7080,7140,7041,7101,7121,7061,7064,7066,7068,6260,5965,2821,2691,2695"),
 				array("idTraseu" => "2506", "traseu"=>"3560,5240,3007,4484,4582,4492,7880,7860,7861,7881,4493,4491,3080,5260,2980,3561"),
-				array("idTraseu" => "990", "traseu"=>"2672,3120,2768,2772,3102,2781,3060,4000,2798,3103,3160,2823,2971,2973,2974,2972,2824,3161,3104,2800,2968,2967,3720,3105,2773,3106,2764,2671"),
+				array("idTraseu" => "990",  "traseu"=>"2672,3120,2768,2772,3102,2781,3060,4000,2798,3103,3160,2823,2971,2973,2974,2972,2824,3161,3104,2800,2968,2967,3720,3105,2773,3106,2764,2671"),
 				array("idTraseu" => "1006", "traseu"=>"2672,3120,2768,2772,3102,2781,3060,2784,3361,2964,3281,2962,2793,2794,2963,3280,3255,3362,2966,3720,3105,2773,3106,2764,2671"),
-				array("idTraseu" => "989", "traseu"=>"6200,2980,2718,2720,2724,2728,3041,3041,2732,2726,2722,2716,2979,2706"),
+				array("idTraseu" => "989",  "traseu"=>"6200,2980,2718,2720,2724,2728,3041,3041,2732,2726,2722,2716,2979,2706"),
 				array("idTraseu" => "1206", "traseu"=>"6200,2980,2716,4860,3002,3003,3005,3006,3004,3000,2718,2979,2706"),
 				array("idTraseu" => "1086", "traseu"=>"2956,2954,2951,2952,2966,3080,4000,2798,4100,4100,2800,2968,2967,2965,2961,2950,2953,2955"),
 				array("idTraseu" => "1166", "traseu"=>"2756,2759,3120,2768,2772,3102,2781,3060,2965,2961,2960,2960,2957,4493,2966,3720,3105,2773,3106,2764,2760,3107"),
@@ -651,6 +650,21 @@ class Traseu
     		}
     	}
     }
+    public function listaTraseeStatie($statie)
+    {
+    	$return = array();
+    	foreach ($this->_trasee as $traseu) {
+    		$statii = explode(",", $traseu["traseu"]);
+    		for ($i=0; $i<count($statii); $i++)
+    		{
+    			if ($statii[$i] == $statie) {
+    				$return[] = $traseu["idTraseu"];
+    			}
+    		}
+
+    	}
+    	return $return;
+    }
 }
 
 
@@ -660,40 +674,90 @@ $trasee = new Traseu();
 $mijloace = new MijlocTransport();
 
 
+
+
+
+
+function processTime($input)
+{
+	$searchedString = "Sosire1: ";
+	$nextString = "Sosire2:";
+	$position1 = strpos(strip_tags($input), $searchedString) + strlen($searchedString); //Detecting the end position of "Sosire1: " 
+	$position2 = strpos(strip_tags($input), $nextString) - $position1 - 1;
+	return substr(strip_tags($input), $position1, $position2);
+}
+
+
+
+
+
+
 //procesare requesturi primite prin parametri
 if(isset($_GET['traseu']) && isset($_GET['statie']))
 {
-	$html = strip_tags(file_get_contents('http://www.ratt.ro/txt/afis_msg.php?id_traseu=1550&id_statie=2955'));
-	echo "traseu+statie";
+	$response = array('nume_traseu' => $mijloace->gasesteMijlocTransport($_GET['traseu']));
+	$string = 'http://www.ratt.ro/txt/afis_msg.php?id_traseu='.$_GET['traseu'].'&id_statie='.$_GET['statie'];
+
+	$ch = curl_init($string);
+	curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+	$content = curl_exec($ch);
+	curl_close($ch);
+
+	$response[] = array("nod"=> $_GET['statie'], "detalii_nod" => $statii->gasesteStatie($_GET['statie']), "sosire" => processTime($content));
+	echo json_encode($response);
+
 }
-elseif (isset($_GET['traseu']) && $_GET['traseu']>0) 
+elseif (isset($_GET['traseu'])) 
 {
-	if(!is_null(($traseu = $trasee->getTraseu($_GET['traseu']))))
+	if($_GET['traseu']>0)
 	{
-		$statie = explode(",", $traseu);
-		$response = array();
+		if(!is_null(($traseu = $trasee->getTraseu($_GET['traseu']))))
+		{
+			$statie = explode(",", $traseu);
+			$response = array('nume_traseu' => $mijloace->gasesteMijlocTransport($_GET['traseu']));
 
-		foreach ($statie as $nod) {
-			$string = 'http://www.ratt.ro/txt/afis_msg.php?id_traseu='.$_GET['traseu'].'&id_statie='.$nod;
+			foreach ($statie as $nod) {
+				$string = 'http://www.ratt.ro/txt/afis_msg.php?id_traseu='.$_GET['traseu'].'&id_statie='.$nod;
 
-			$ch = curl_init($string);
-			curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-			$content = curl_exec($ch);
-			curl_close($ch);
+				$ch = curl_init($string);
+				curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+				$content = curl_exec($ch);
+				curl_close($ch);
 
-			$response[] = array("nod"=> $nod, "detalii_nod" => $statii->gasesteStatie($nod), "sosire" => "");
+				$response[] = array("nod"=> $nod, "detalii_nod" => $statii->gasesteStatie($nod), "sosire" => processTime($content));
+			}
+			echo json_encode($response);
+
+		}else{
+			echo json_encode(array("error" => "traseul specificat este incorrect"));
 		}
-		echo json_encode($response);
-
-	}else{
-		echo json_encode(array("traseul specificat este incorrect"));
 	}
 }
+	
 elseif (isset($_GET['statie'])) 
 {
 	# code...
-	echo "statie";
+	$trasee = $trasee->listaTraseeStatie($_GET['statie']);
+	$response = array();
+	foreach ($trasee as $traseu) 
+	{
+		$response2 = array('nume_traseu' => $mijloace->gasesteMijlocTransport($traseu));
+
+		$string = 'http://www.ratt.ro/txt/afis_msg.php?id_traseu='.$traseu.'&id_statie='.$_GET['statie'];
+		$ch = curl_init($string);
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+		$content = curl_exec($ch);
+		curl_close($ch);
+
+		$response2[] = array("nod"=> $_GET['statie'], "detalii_nod" => $statii->gasesteStatie($_GET['statie']), "sosire" => processTime($content));
+
+		$response[] = $response2;
+		
+
+	}
+	echo json_encode($response);
 }
+			
 
 
 ?>
