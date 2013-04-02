@@ -707,13 +707,23 @@ if(isset($_GET['traseu']) && isset($_GET['statie']))
 	echo json_encode($response);
 
 }
-elseif (isset($_GET['traseu'])) 
+elseif (isset($_GET['traseu']) && isset($_GET['directie'])) 
 {
-	if($_GET['traseu']>0)
+	if($_GET['traseu'])
 	{
 		if(!is_null(($traseu = $trasee->getTraseu($_GET['traseu']))))
 		{
+			//detecting the route of the vehicle
 			$statie = explode(",", $traseu);
+
+			if ($_GET['directie']>=0) {
+				//spliting the route into 2 chunck's
+				$statie = array_chunk($statie, count($statie)/2);
+
+				//selecting the needed chunk to process data
+				$statie = $statie[$_GET['directie']?1:0];
+			}
+
 			$response = array('nume_traseu' => $mijloace->gasesteMijlocTransport($_GET['traseu']));
 
 			foreach ($statie as $nod) {
@@ -736,26 +746,29 @@ elseif (isset($_GET['traseu']))
 	
 elseif (isset($_GET['statie'])) 
 {
-	# code...
-	$trasee = $trasee->listaTraseeStatie($_GET['statie']);
-	$response = array();
-	foreach ($trasee as $traseu) 
-	{
-		$response2 = array('nume_traseu' => $mijloace->gasesteMijlocTransport($traseu));
+	$statie = $_GET['statie'];
+	if ($statie > 0) {
+		$trasee = $trasee->listaTraseeStatie($_GET['statie']);
+		$response = array();
+		foreach ($trasee as $traseu) 
+		{
+			$response2 = array('nume_traseu' => $mijloace->gasesteMijlocTransport($traseu), 'id_traseu' => $traseu);
 
-		$string = 'http://www.ratt.ro/txt/afis_msg.php?id_traseu='.$traseu.'&id_statie='.$_GET['statie'];
-		$ch = curl_init($string);
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-		$content = curl_exec($ch);
-		curl_close($ch);
+			$string = 'http://www.ratt.ro/txt/afis_msg.php?id_traseu='.$traseu.'&id_statie='.$_GET['statie'];
+			$ch = curl_init($string);
+			curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+			$content = curl_exec($ch);
+			curl_close($ch);
 
-		$response2[] = array("nod"=> $_GET['statie'], "detalii_nod" => $statii->gasesteStatie($_GET['statie']), "sosire" => processTime($content));
+			$response2[] = array("nod"=> $_GET['statie'], "detalii_nod" => $statii->gasesteStatie($_GET['statie']), "sosire" => processTime($content));
 
-		$response[] = $response2;
-		
-
+			$response[] = $response2;
+		}
+		echo json_encode($response);
+	}else{
+		echo json_encode(array("error" => "statia specificata este incorrecta"));
 	}
-	echo json_encode($response);
+
 }
 			
 
